@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roleplay Lokal</title>
+<style>
+/* ===== TEMA: ubah warna & font di sini ===== */
+:root{
+  --bg:#11141b; --panel:#181c26; --line:#272d3b; --ink:#e8e6ef; --mute:#8b91a4;
+  --ai:#b9a2ff;   /* warna karakter */
+  --me:#6fd0c0;   /* warna kamu */
+  --danger:#ff8f8f;
+  --serif:Georgia,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans)}
+button,input,textarea{font:inherit;color:inherit}
+button{background:var(--line);border:0;border-radius:6px;padding:.45em .9em;cursor:pointer}
+button:hover{background:#343c50}
+:focus-visible{outline:2px solid var(--ai);outline-offset:2px}
+.app{display:grid;grid-template-columns:330px 1fr;height:100dvh}
+
+/* sidebar */
+aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.side-head{display:flex;justify-content:space-between;align-items:center}
+h1{font:600 17px var(--sans);margin:0}
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:600;margin-bottom:8px}
+label{display:block;color:var(--mute);font-size:13px;margin:0 0 10px}
+label input,label textarea{display:block;width:100%;margin-top:4px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;color:var(--ink);resize:vertical}
+.side-foot{margin-top:auto;display:flex;gap:6px;flex-wrap:wrap;padding-top:10px}
+.icon{display:none;background:none;font-size:18px;padding:.2em .5em}
+
+/* chat */
+main{display:flex;flex-direction:column;min-width:0;height:100dvh}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line)}
+header small{display:block;color:var(--mute);font-size:12px}
+.avatar{width:38px;height:38px;border-radius:50%;background:var(--ai);color:#1a1230;display:grid;place-items:center;font:700 17px var(--serif)}
+#log{flex:1;overflow-y:auto;padding:24px 20px;display:flex;flex-direction:column;gap:22px;scroll-behavior:smooth}
+.msg{max-width:min(680px,92%);border-left:3px solid var(--ai);padding:2px 0 2px 16px}
+.msg.me{align-self:flex-end;border-left:0;border-right:3px solid var(--me);padding:2px 16px 2px 0;text-align:right}
+.who{font-size:13px;font-weight:600;color:var(--ai);margin-bottom:2px}
+.me .who{color:var(--me)}
+.body{font:17px/1.65 var(--serif);overflow-wrap:anywhere}
+.body em{color:var(--ai);opacity:.9}
+.me .body em{color:var(--me)}
+.body:empty::after{content:"…";color:var(--mute)}
+.acts{display:flex;gap:4px;margin-top:6px;opacity:0;transition:opacity .15s}
+.me .acts{justify-content:flex-end}
+.msg:hover .acts,.msg:focus-within .acts{opacity:1}
+.acts button{background:none;color:var(--mute);font-size:12px;padding:.2em .6em}
+.acts button:hover{color:var(--ink);background:var(--line)}
+.edit{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;font:16px/1.5 var(--serif);color:var(--ink)}
+
+.composer{display:flex;gap:10px;padding:12px 20px 16px;border-top:1px solid var(--line);align-items:flex-end}
+#inp{flex:1;resize:none;max-height:160px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+#send{background:var(--ai);color:#1a1230;font-weight:600;padding:.6em 1.2em}
+#send.stop{background:var(--danger)}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#2a3142;padding:10px 16px;border-radius:8px;max-width:90vw;display:none;z-index:9}
+
+@media(max-width:760px){
+  .app{grid-template-columns:1fr}
+  aside{position:fixed;inset:0 auto 0 0;width:min(88vw,340px);transform:translateX(-100%);transition:transform .2s;z-index:5}
+  aside.open{transform:none}
+  .icon{display:inline-block}
+  .msg{max-width:100%}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="side">
+    <div class="side-head"><h1>Roleplay Lokal</h1><button class="icon" id="closeSide" aria-label="Tutup panel">✕</button></div>
+
+    <details open><summary>Karakter</summary>
+      <label>Nama<input data-k="char.name"></label>
+      <label>Kepribadian & latar belakang<textarea rows="6" data-k="char.persona"></textarea></label>
+      <label>Skenario<textarea rows="3" data-k="char.scenario"></textarea></label>
+      <label>Pesan pembuka<textarea rows="4" data-k="char.first"></textarea></label>
+      <label>Aturan gaya menulis<textarea rows="4" data-k="char.rules"></textarea></label>
+    </details>
+
+    <details open><summary>Kamu</summary>
+      <label>Namamu<input data-k="user.name"></label>
+    </details>
+
+    <details><summary>Koneksi LM Studio</summary>
+      <label>Alamat server<input data-k="cfg.url"></label>
+      <label>Model<input data-k="cfg.model" list="models" placeholder="Kosong = model yang sedang dimuat"></label>
+      <datalist id="models"></datalist>
+      <label>Temperature<input type="number" step="0.05" min="0" max="2" data-k="cfg.temp"></label>
+      <label>Maks. token per balasan<input type="number" step="32" min="32" data-k="cfg.max"></label>
+      <button id="test">Tes koneksi</button>
+    </details>
+
+    <div class="side-foot">
+      <button id="reset">Mulai ulang</button>
+      <button id="export">Ekspor</button>
+      <button id="import">Impor</button>
+      <input type="file" id="file" accept=".json" hidden>
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <button class="icon" id="openSide" aria-label="Buka panel karakter">☰</button>
+      <div class="avatar" id="av"></div>
+      <div><b id="hname"></b><small>berjalan lokal di LM Studio</small></div>
+    </header>
+    <div id="log" aria-live="polite"></div>
+    <div class="composer">
+      <textarea id="inp" rows="1" placeholder="Tulis balasanmu. Aksi diapit *bintang*."></textarea>
+      <button id="send">Kirim</button>
+    </div>
+  </main>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+
+/* ===== DATA AWAL: ganti karakter default di sini ===== */
+const DEFAULT = {
+  char: {
+    name: "Mira",
+    persona: "Mira, 27 tahun, penjaga toko buku tua di kota yang selalu hujan. Pendiam, tajam mengamati, suka menyindir dengan lembut. Diam-diam menyimpan buku yang tidak ada di rak mana pun.",
+    scenario: "Sore hujan. {{user}} masuk ke toko buku Mira untuk berteduh.",
+    first: "*Lonceng di pintu berdenting pelan. Mira mengangkat kepala dari buku yang sedang ia baca, lalu menatap {{user}} yang basah kuyup.* \"Handuk ada di belakang. Bukunya jangan ikut basah, ya.\"",
+    rules: "Tetap dalam karakter, jangan mengaku sebagai AI. Jangan menulis ucapan atau tindakan {{user}}. Tulis aksi dan narasi di antara *tanda bintang*, dialog ditulis biasa. Balas dalam bahasa yang dipakai {{user}}, panjang 1-3 paragraf."
+  },
+  user: { name: "Kamu" },
+  cfg: { url: "http://localhost:1234/v1", model: "", temp: 0.8, max: 512 },
+  msgs: []
+};
+
+/* ===== STATE & PENYIMPANAN (localStorage) ===== */
+let S = load(), busy = false, ctrl = null, editing = null;
+
+function load() {
+  const base = structuredClone(DEFAULT);
+  try {
+    const saved = JSON.parse(localStorage.getItem("rp-state") || "null");
+    if (saved) {
+      for (const k of ["char", "user", "cfg"]) base[k] = { ...base[k], ...saved[k] };
+      base.msgs = saved.msgs || [];
+    }
+  } catch (e) {}
+  return base;
+}
+function save() { try { localStorage.setItem("rp-state", JSON.stringify(S)); } catch (e) {} }
+
+/* ===== UTIL ===== */
+const sub = t => (t || "").replaceAll("{{char}}", S.char.name).replaceAll("{{user}}", S.user.name);
+const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\n/g, "<br>");
+const base = () => S.cfg.url.replace(/\/+$/, "");
+let tt;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(tt); tt = setTimeout(() => t.style.display = "none", 4500); }
+
+/* ===== PROMPT SISTEM: atur cara AI diberi instruksi di sini ===== */
+function sysPrompt() {
+  const c = S.char;
+  return sub(`Kamu memerankan ${c.name}.\n\n${c.persona}\n\nSkenario: ${c.scenario}\n\n${c.rules}`);
+}
+
+/* ===== RENDER ===== */
+function render() {
+  $("#hname").textContent = S.char.name || "Karakter";
+  $("#av").textContent = (S.char.name || "?")[0].toUpperCase();
+  const log = $("#log");
+  log.innerHTML = "";
+  S.msgs.forEach((m, i) => {
+    const d = document.createElement("article");
+    d.className = "msg " + (m.role === "user" ? "me" : "ai");
+    let h = `<div class="who">${esc((m.role === "user" ? S.user.name : S.char.name) || "")}</div>`;
+    if (editing === i) {
+      h += `<textarea class="edit" rows="4">${esc(m.content)}</textarea><div class="acts" style="opacity:1"><button data-a="save">Simpan</button><button data-a="cancel">Batal</button></div>`;
+    } else {
+      h += `<div class="body">${fmt(sub(m.content))}</div>`;
+      if (!busy) {
+        const redo = i > 0 && i === S.msgs.length - 1 && m.role === "assistant" ? `<button data-a="redo">Ulangi</button>` : "";
+        h += `<div class="acts"><button data-a="edit">Edit</button><button data-a="del">Hapus</button>${redo}</div>`;
+      }
+    }
+    d.innerHTML = h;
+    d.addEventListener("click", e => { const a = e.target.dataset.a; if (a) act(a, i, d); });
+    log.appendChild(d);
+  });
+  log.scrollTop = log.scrollHeight;
+}
+
+function act(a, i, d) {
+  if (a === "edit") { editing = i; render(); }
+  else if (a === "cancel") { editing = null; render(); }
+  else if (a === "save") { S.msgs[i].content = d.querySelector(".edit").value; editing = null; save(); render(); }
+  else if (a === "del") { S.msgs.splice(i, 1); save(); render(); }
+  else if (a === "redo") { S.msgs.pop(); save(); generate(); }
+}
+
+function setBusy(b) {
+  busy = b;
+  const s = $("#send");
+  s.textContent = b ? "Stop" : "Kirim";
+  s.classList.toggle("stop", b);
+}
+
+/* ===== GENERATE (streaming ke LM Studio) ===== */
+async function generate() {
+  if (busy) return;
+  setBusy(true);
+  const m = { role: "assistant", content: "" };
+  S.msgs.push(m);
+  render();
+  ctrl = new AbortController();
+  try {
+    const history = S.msgs.slice(0, -1).map(({ role, content }) => ({ role, content: sub(content) }));
+    const res = await fetch(base() + "/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        model: S.cfg.model || undefined,
+        messages: [{ role: "system", content: sysPrompt() }, ...history],
+        temperature: +S.cfg.temp,
+        max_tokens: +S.cfg.max,
+        stream: true
+      })
+    });
+    if (!res.ok) throw new Error("server membalas " + res.status);
+    const rd = res.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      for (const l of lines) {
+        if (!l.startsWith("data:")) continue;
+        const data = l.slice(5).trim();
+        if (data === "[DONE]") continue;
+        try {
+          const t = JSON.parse(data).choices[0].delta.content;
+          if (t) { m.content += t; paint(m); }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {
+    if (e.name !== "AbortError") {
+      if (!m.content) S.msgs.pop();
+      toast("Gagal terhubung (" + e.message + "). Pastikan server LM Studio sudah di-Start dan CORS aktif.");
+    }
+  }
+  setBusy(false);
+  save();
+  render();
+}
+
+function paint(m) {
+  const log = $("#log");
+  log.lastElementChild.querySelector(".body").innerHTML = fmt(sub(m.content));
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ===== KIRIM PESAN ===== */
+const inp = $("#inp");
+function autosize() { inp.style.height = "auto"; inp.style.height = Math.min(inp.scrollHeight, 160) + "px"; }
+function send() {
+  if (busy) { ctrl.abort(); return; }
+  const t = inp.value.trim();
+  if (!t) return;
+  S.msgs.push({ role: "user", content: t });
+  inp.value = ""; autosize(); save();
+  generate();
+}
+inp.addEventListener("input", autosize);
+inp.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+});
+$("#send").onclick = send;
+
+/* ===== PANEL SAMPING ===== */
+function bind() {
+  document.querySelectorAll("[data-k]").forEach(el => {
+    const [a, b] = el.dataset.k.split(".");
+    el.value = S[a][b];
+    el.oninput = () => { S[a][b] = el.value; save(); if (a !== "cfg") render(); };
+  });
+}
+function seed() {
+  S.msgs = S.char.first.trim() ? [{ role: "assistant", content: S.char.first }] : [];
+}
+$("#reset").onclick = () => { if (confirm("Mulai ulang percakapan? Riwayat chat akan dihapus.")) { seed(); save(); render(); } };
+$("#export").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: "application/json" }));
+  a.download = (S.char.name || "roleplay") + ".json";
+  a.click();
+};
+$("#import").onclick = () => $("#file").click();
+$("#file").onchange = async e => {
+  try {
+    const j = JSON.parse(await e.target.files[0].text());
+    for (const k of ["char", "user", "cfg"]) S[k] = { ...S[k], ...j[k] };
+    S.msgs = j.msgs || [];
+    save(); bind(); render(); toast("Impor berhasil.");
+  } catch (err) { toast("File tidak bisa dibaca. Pakai file hasil Ekspor."); }
+  e.target.value = "";
+};
+$("#test").onclick = async () => {
+  try {
+    const r = await fetch(base() + "/models");
+    const ids = (await r.json()).data.map(x => x.id);
+    $("#models").innerHTML = ids.map(i => `<option value="${esc(i)}">`).join("");
+    toast(`Terhubung. ${ids.length} model terdeteksi.`);
+  } catch (e) { toast("Tidak bisa terhubung ke " + base() + ". Cek server LM Studio dan CORS."); }
+};
+$("#openSide").onclick = () => $("#side").classList.add("open");
+$("#closeSide").onclick = () => $("#side").classList.remove("open");
+
+/* ===== MULAI ===== */
+if (!S.msgs.length) seed();
+bind();
+render();
+</script>
+</body>
+</html>
